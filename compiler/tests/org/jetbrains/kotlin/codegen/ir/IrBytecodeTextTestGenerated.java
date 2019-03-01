@@ -2645,9 +2645,19 @@ public class IrBytecodeTextTestGenerated extends AbstractIrBytecodeTextTest {
             runTest("compiler/testData/codegen/bytecodeText/lineNumbers/ifElse.kt");
         }
 
+        @TestMetadata("ifElseConstTrue.kt")
+        public void testIfElseConstTrue() throws Exception {
+            runTest("compiler/testData/codegen/bytecodeText/lineNumbers/ifElseConstTrue.kt");
+        }
+
         @TestMetadata("singleThen.kt")
         public void testSingleThen() throws Exception {
             runTest("compiler/testData/codegen/bytecodeText/lineNumbers/singleThen.kt");
+        }
+
+        @TestMetadata("singleThenConstTrue.kt")
+        public void testSingleThenConstTrue() throws Exception {
+            runTest("compiler/testData/codegen/bytecodeText/lineNumbers/singleThenConstTrue.kt");
         }
 
         @TestMetadata("tryCatch.kt")

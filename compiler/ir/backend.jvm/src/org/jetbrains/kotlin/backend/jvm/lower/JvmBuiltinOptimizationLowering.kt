@@ -120,7 +120,7 @@ class JvmBuiltinOptimizationLowering(val context: JvmBackendContext) : FileLower
                 return if (expression.branches.size == 0) {
                     IrBlockImpl(expression.startOffset, expression.endOffset, context.irBuiltIns.unitType)
                 } else {
-                    expression.branches.first().takeIf { it.condition.isTrueConst() }?.result ?: expression
+                    expression.branches.first().takeIf { it.condition.isTrueConst() && expression.origin == null }?.result ?: expression
                 }
             }
 

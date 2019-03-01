@@ -40,6 +40,7 @@ import org.jetbrains.kotlin.ir.types.isNothing
 import org.jetbrains.kotlin.ir.types.toKotlinType
 import org.jetbrains.kotlin.ir.util.dump
 import org.jetbrains.kotlin.ir.util.isNullConst
+import org.jetbrains.kotlin.ir.util.isTrueConst
 import org.jetbrains.kotlin.ir.util.render
 import org.jetbrains.kotlin.ir.visitors.IrElementVisitor
 import org.jetbrains.kotlin.resolve.DescriptorUtils
@@ -695,9 +696,16 @@ class ExpressionCodegen(
         val elseLabel = Label()
         val thenBranch = branch.result
         //TODO don't generate condition for else branch - java verifier fails with empty stack
-        val elseBranch = branch is IrElseBranch
-        if (!elseBranch) {
+        // Else branch comes from "if (ALWAYS_TRUE)", where ALWAYS_TRUE can be handwritten, inferred by compiler,
+        // or a construct of IrElseBranch.
+        val isElseBranch = branch.condition.isTrueConst()
+        if (!isElseBranch) {
             genConditionWithOptimizationsIfPossible(branch, data, elseLabel)
+        } else if (branch !is IrElseBranch) {
+            // Generate a nop for conditions that are optimized away, except for the user written "else",
+            // so that a debugger can break on the line of the condition.
+            branch.condition.markLineNumber(startOffset = true)
+            mv.nop()
         }
 
         val end = Label()
@@ -710,7 +718,7 @@ class ExpressionCodegen(
         mv.goTo(end)
         mv.mark(elseLabel)
 
-        if (!otherBranches.isEmpty()) {
+        if (!otherBranches.isEmpty() && !isElseBranch) {
             val nextBranch = otherBranches.first()
             genIfWithBranches(nextBranch, data, type, otherBranches.drop(1))
         }
