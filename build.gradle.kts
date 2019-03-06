@@ -299,8 +299,7 @@ allprojects {
     val mirrorRepo: String? = findProperty("maven.repository.mirror")?.toString()
 
     repositories {
-        intellijSdkRepo(project)
-        androidDxJarRepo(project)
+        localRepo(project)
         mirrorRepo?.let(::maven)
         bootstrapKotlinRepo?.let(::maven)
         jcenter()
