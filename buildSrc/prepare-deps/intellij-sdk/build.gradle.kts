@@ -156,13 +156,21 @@ val mergeSources by tasks.creating(Jar::class.java) {
 
 val sourcesFile = mergeSources.outputs.files.singleFile
 
-val makePlatform = if (androidStudioBuild != null) {
-    buildIvyRepositoryTask(androidStudio, customDepsOrg, customDepsRepoDir)
+val makeIde = if (androidStudioBuild != null) {
+    buildIvyRepositoryTask(
+        androidStudio,
+        customDepsOrg,
+        customDepsRepoDir,
+        if (studioOs == "mac") 
+            ::skipContentsDirectory 
+        else 
+            ::skipToplevelDirectory
+    )
 } else {
     val task = if (installIntellijUltimate) {
-        buildIvyRepositoryTask(intellijUltimate, customDepsOrg, customDepsRepoDir, sourcesFile)
+        buildIvyRepositoryTask(intellijUltimate, customDepsOrg, customDepsRepoDir, null, sourcesFile)
     } else {
-        buildIvyRepositoryTask(intellij, customDepsOrg, customDepsRepoDir, sourcesFile)
+        buildIvyRepositoryTask(intellij, customDepsOrg, customDepsRepoDir, null, sourcesFile)
     }
 
     task.configure {
@@ -175,15 +183,15 @@ val makePlatform = if (androidStudioBuild != null) {
 val build by tasks.creating {
     dependsOn(
         makeIntellijCore,
-        makePlatform,
-        buildIvyRepositoryTask(jpsStandalone, customDepsOrg, customDepsRepoDir, sourcesFile),
-        buildIvyRepositoryTask(jpsBuildTest, customDepsOrg, customDepsRepoDir, sourcesFile),
+        makeIde,
+        buildIvyRepositoryTask(jpsStandalone, customDepsOrg, customDepsRepoDir, null, sourcesFile),
+        buildIvyRepositoryTask(jpsBuildTest, customDepsOrg, customDepsRepoDir, null, sourcesFile),
         makeIntellijAnnotations
     )
 
     if (installIntellijUltimate) {
         dependsOn(
-            buildIvyRepositoryTask(nodeJS, customDepsOrg, customDepsRepoDir, sourcesFile)
+            buildIvyRepositoryTask(nodeJS, customDepsOrg, customDepsRepoDir, ::skipToplevelDirectory, sourcesFile)
         )
     }
 }
@@ -192,6 +200,7 @@ fun buildIvyRepositoryTask(
     configuration: Configuration,
     organization: String,
     repoDirectory: File,
+    pathRemap: ((String) -> String)? = null,
     sources: File? = null
 ) = tasks.register("buildIvyRepositoryFor${configuration.name.capitalize()}") {
 
@@ -209,7 +218,6 @@ fun buildIvyRepositoryTask(
 
     doFirst {
         configuration.resolvedConfiguration.resolvedArtifacts.single().run {
-            val moduleName = moduleVersion.id.name
             val moduleDirectory = moduleDirectory()
             val artifactsDirectory = File(moduleDirectory(), "artifacts")
 
@@ -221,11 +229,10 @@ fun buildIvyRepositoryTask(
 
                 into(artifactsDirectory)
 
-                eachFile {
-                    // Plugins in jetbrains repository are packed in toplevel directory
-                    path = path.substringAfter("$moduleName/", path)
-                    // In AS there is two directories on top level (Android Studio X.X/Contents/), cut them of
-                    path = path.substringAfter("Contents/", path)
+                if (pathRemap != null) {
+                    eachFile {
+                        path = pathRemap(path)
+                    }
                 }
 
                 includeEmptyDirs = false
@@ -313,3 +320,7 @@ fun writeIvyXml(
         writeTo(File(targetDir, "$fileName.ivy.xml"))
     }
 }
+
+fun skipToplevelDirectory(path: String) = path.substringAfter('/')
+
+fun skipContentsDirectory(path: String) = path.substringAfter("Contents/")
