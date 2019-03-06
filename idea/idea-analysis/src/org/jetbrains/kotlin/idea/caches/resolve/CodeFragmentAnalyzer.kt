@@ -23,6 +23,8 @@ import org.jetbrains.kotlin.incremental.components.NoLookupLocation
 import org.jetbrains.kotlin.psi.*
 import org.jetbrains.kotlin.psi.codeFragmentUtil.suppressDiagnosticsInDebugMode
 import org.jetbrains.kotlin.psi.psiUtil.getParentOfType
+import org.jetbrains.kotlin.psi.psiUtil.getParentOfTypes2
+import org.jetbrains.kotlin.psi.psiUtil.parentsWithSelf
 import org.jetbrains.kotlin.resolve.*
 import org.jetbrains.kotlin.resolve.bindingContextUtil.getDataFlowInfoAfter
 import org.jetbrains.kotlin.resolve.calls.smartcasts.DataFlowInfo
@@ -135,20 +137,26 @@ class CodeFragmentAnalyzer(
             }
             is KtElement -> {
                 bindingContext = resolutionFactory(context)
-                scope = bindingContext[BindingContext.LEXICAL_SCOPE, context]
+                scope = findLexicalScopeForSelfOrParent(context, bindingContext)
                 dataFlowInfo = bindingContext.getDataFlowInfoAfter(context)
             }
         }
 
         if (scope == null) {
-            val containingKtFile = context?.containingFile as? KtFile
-            if (containingKtFile != null) {
-                bindingContext = resolveSession.bindingContext
-                scope = resolveSession.fileScopeProvider.getFileResolutionScope(containingKtFile)
+            val parentDeclaration = context?.getParentOfTypes2<KtDeclaration, KtFile>()
+            if (parentDeclaration != null) {
+                return getContextInfo(parentDeclaration, resolutionFactory)
             }
         }
 
         return ContextInfo(bindingContext, scope ?: createEmptyScope(resolveSession.moduleDescriptor), dataFlowInfo)
+    }
+
+    private fun findLexicalScopeForSelfOrParent(element: KtElement, bindingContext: BindingContext): LexicalScope? {
+        return element.parentsWithSelf
+            .filterIsInstance<KtElement>()
+            .map { bindingContext[BindingContext.LEXICAL_SCOPE, it] }
+            .firstOrNull()
     }
 
     private data class ClassResolutionResult(val bindingContext: BindingContext, val descriptor: ClassDescriptorWithResolutionScopes)
