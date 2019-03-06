@@ -140,7 +140,7 @@ class SpecifyTypeExplicitlyIntention : SelfTargetingRangeIntention<KtCallableDec
             }
 
             fun KotlinType.toResolvableApproximations(): List<KotlinType> =
-                with(getResolvableApproximations(scope, checkTypeParameters).toList()) {
+                with(getResolvableApproximations(scope, checkTypeParameters, typeParameterIsValid = true).toList()) {
                     when {
                         exprType.isNullabilityFlexible() -> flatMap {
                             listOf(TypeUtils.makeNotNullable(it), TypeUtils.makeNullable(it))

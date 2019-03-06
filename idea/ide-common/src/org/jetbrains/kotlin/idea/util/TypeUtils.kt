@@ -18,7 +18,10 @@
 
 package org.jetbrains.kotlin.idea.util
 
+import org.jetbrains.kotlin.builtins.getReturnTypeFromFunctionType
+import org.jetbrains.kotlin.builtins.isBuiltinFunctionalType
 import org.jetbrains.kotlin.builtins.jvm.JavaToKotlinClassMap
+import org.jetbrains.kotlin.builtins.replaceReturnType
 import org.jetbrains.kotlin.descriptors.ClassDescriptor
 import org.jetbrains.kotlin.descriptors.Modality
 import org.jetbrains.kotlin.descriptors.TypeParameterDescriptor
@@ -88,7 +91,12 @@ private fun KotlinType.approximateNonDynamicFlexibleTypes(
     )
 }
 
-fun KotlinType.isResolvableInScope(scope: LexicalScope?, checkTypeParameters: Boolean, allowIntersections: Boolean = false): Boolean {
+fun KotlinType.isResolvableInScope(
+    scope: LexicalScope?,
+    checkTypeParameters: Boolean,
+    allowIntersections: Boolean = false,
+    typeParameterIsValid: Boolean = false
+): Boolean {
     if (constructor is IntersectionTypeConstructor) {
         if (!allowIntersections) return false
         return constructor.supertypes.all { it.isResolvableInScope(scope, checkTypeParameters, allowIntersections) }
@@ -98,7 +106,7 @@ fun KotlinType.isResolvableInScope(scope: LexicalScope?, checkTypeParameters: Bo
 
     val descriptor = constructor.declarationDescriptor
     if (descriptor == null || descriptor.name.isSpecial) return false
-    if (!checkTypeParameters && descriptor is TypeParameterDescriptor) return true
+    if ((!checkTypeParameters || typeParameterIsValid) && descriptor is TypeParameterDescriptor) return true
 
     return scope != null && scope.findClassifier(descriptor.name, NoLookupLocation.FROM_IDE) == descriptor
 }
@@ -120,37 +128,61 @@ fun KotlinType.anonymousObjectSuperTypeOrNull(): KotlinType? {
 fun KotlinType.getResolvableApproximations(
     scope: LexicalScope?,
     checkTypeParameters: Boolean,
-    allowIntersections: Boolean = false
+    allowIntersections: Boolean = false,
+    typeParameterIsValid: Boolean = false
 ): Sequence<KotlinType> {
     return (listOf(this) + TypeUtils.getAllSupertypes(this))
         .asSequence()
-        .filter { it.isResolvableInScope(scope, checkTypeParameters, allowIntersections) }
-        .mapNotNull mapArgs@{
-            val resolvableArgs = it.arguments.filterTo(SmartSet.create()) { typeProjection ->
-                typeProjection.type.isResolvableInScope(
-                    scope,
-                    checkTypeParameters
-                )
-            }
-            if (resolvableArgs.containsAll(it.arguments)) return@mapArgs it
-
-            val newArguments = (it.arguments zip it.constructor.parameters).map { pair ->
-                val (arg, param) = pair
-                when {
-                    arg in resolvableArgs -> arg
-
-                    arg.projectionKind == Variance.OUT_VARIANCE ||
-                            param.variance == Variance.OUT_VARIANCE -> TypeProjectionImpl(
-                        arg.projectionKind,
-                        arg.type.approximateWithResolvableType(scope, checkTypeParameters)
-                    )
-
-                    else -> return@mapArgs null
-                }
-            }
-
-            it.replace(newArguments)
+        .mapNotNull {
+            it.asTypeProjection()
+                .fixTypeProjection(scope, checkTypeParameters, allowIntersections, typeParameterIsValid, isInnerTypeParameter = false)
+                ?.type
         }
+}
+
+private fun TypeProjection.fixTypeProjection(
+    scope: LexicalScope?,
+    checkTypeParameters: Boolean,
+    allowIntersections: Boolean,
+    typeParameterIsValid: Boolean,
+    isInnerTypeParameter: Boolean
+): TypeProjection? {
+    if (!type.isResolvableInScope(scope, checkTypeParameters, allowIntersections, typeParameterIsValid)) return null
+    if (type.arguments.isEmpty()) return this
+
+    val resolvableArgs = type.arguments.filterTo(SmartSet.create()) { typeProjection ->
+        typeProjection.type.isResolvableInScope(scope, checkTypeParameters, allowIntersections, typeParameterIsValid)
+    }
+
+    if (resolvableArgs.containsAll(type.arguments)) {
+        fun fixArguments(type: KotlinType): KotlinType? = type.replace(type.arguments.map {
+            if (it.isStarProjection) it
+            else it.fixTypeProjection(scope, checkTypeParameters, allowIntersections, typeParameterIsValid, isInnerTypeParameter = true)
+                ?: if (isInnerTypeParameter) return null else type.replaceArgumentsWithStarProjections().arguments.first()
+        })
+
+        return if (type.isBuiltinFunctionalType) {
+            val returnType = type.getReturnTypeFromFunctionType()
+            type.replaceReturnType(fixArguments(returnType) ?: return null).asTypeProjection()
+        } else fixArguments(type)?.asTypeProjection()
+    }
+
+    val newArguments = (type.arguments zip type.constructor.parameters).map { pair ->
+        val (arg, param) = pair
+        when {
+            arg in resolvableArgs -> arg
+
+            arg.projectionKind == Variance.OUT_VARIANCE ||
+                    param.variance == Variance.OUT_VARIANCE -> TypeProjectionImpl(
+                arg.projectionKind,
+                arg.type.approximateWithResolvableType(scope, checkTypeParameters)
+            )
+
+            else -> return null
+        }
+    }
+
+    return type.replace(newArguments).asTypeProjection()
 }
 
 fun KotlinType.isAbstract(): Boolean {
