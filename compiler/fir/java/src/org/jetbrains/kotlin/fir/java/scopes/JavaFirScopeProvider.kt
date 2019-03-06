@@ -12,9 +12,9 @@ import org.jetbrains.kotlin.fir.resolve.FirScopeProvider
 import org.jetbrains.kotlin.fir.scopes.FirScope
 
 class JavaFirScopeProvider : FirScopeProvider {
-    override fun getDeclaredMemberScope(klass: FirRegularClass, session: FirSession): FirScope {
+    override fun getUseSiteMemberScope(klass: FirRegularClass, useSiteSession: FirSession): FirScope {
         if (klass !is FirJavaClass) return FirScopeProvider.emptyScope
 
-        return JavaClassEnhancementScope(session, klass.useSiteScope)
+        return JavaClassEnhancementScope(useSiteSession, klass.useSiteScope)
     }
 }

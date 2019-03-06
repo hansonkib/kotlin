@@ -12,7 +12,7 @@ import org.jetbrains.kotlin.fir.scopes.FirScope
 import org.jetbrains.kotlin.fir.scopes.impl.FirCompositeScope
 
 class FirCompositeScopeProvider(private val providers: List<FirScopeProvider>) : FirScopeProvider {
-    override fun getDeclaredMemberScope(klass: FirRegularClass, session: FirSession): FirScope {
-        return FirCompositeScope(providers.mapTo(mutableListOf()) { it.getDeclaredMemberScope(klass, session) })
+    override fun getUseSiteMemberScope(klass: FirRegularClass, useSiteSession: FirSession): FirScope {
+        return FirCompositeScope(providers.mapTo(mutableListOf()) { it.getUseSiteMemberScope(klass, useSiteSession) })
     }
 }

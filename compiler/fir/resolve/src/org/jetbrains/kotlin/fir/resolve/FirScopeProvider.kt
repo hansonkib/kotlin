@@ -10,7 +10,7 @@ import org.jetbrains.kotlin.fir.declarations.FirRegularClass
 import org.jetbrains.kotlin.fir.scopes.FirScope
 
 interface FirScopeProvider {
-    fun getDeclaredMemberScope(klass: FirRegularClass, session: FirSession): FirScope
+    fun getUseSiteMemberScope(klass: FirRegularClass, useSiteSession: FirSession): FirScope
 
     companion object {
         val emptyScope = object : FirScope {}

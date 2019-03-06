@@ -170,7 +170,7 @@ abstract class AbstractFirTypeEnhancementTest : KtUsefulTestCase() {
             val processedJavaClasses = mutableSetOf<FirJavaClass>()
             for (javaClass in javaProvider.getJavaTopLevelClasses().sortedBy { it.name }) {
                 if (javaClass !is FirJavaClass || javaClass in processedJavaClasses) continue
-                val enhancementScope = session.service<FirScopeProvider>().getDeclaredMemberScope(javaClass, session).let {
+                val enhancementScope = session.service<FirScopeProvider>().getUseSiteMemberScope(javaClass, session).let {
                     when (it) {
                         is FirCompositeScope -> it.scopes.filterIsInstance<JavaClassEnhancementScope>().first()
                         is JavaClassEnhancementScope -> it

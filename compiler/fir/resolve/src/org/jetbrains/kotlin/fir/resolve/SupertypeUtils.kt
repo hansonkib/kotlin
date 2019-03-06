@@ -10,12 +10,14 @@ import org.jetbrains.kotlin.fir.FirSession
 import org.jetbrains.kotlin.fir.declarations.FirRegularClass
 import org.jetbrains.kotlin.fir.declarations.expandedConeType
 import org.jetbrains.kotlin.fir.declarations.superConeTypes
+import org.jetbrains.kotlin.fir.scopes.FirScope
+import org.jetbrains.kotlin.fir.scopes.impl.FirClassSubstitutionScope
+import org.jetbrains.kotlin.fir.scopes.impl.FirClassUseSiteScope
 import org.jetbrains.kotlin.fir.symbols.ConeClassifierSymbol
+import org.jetbrains.kotlin.fir.symbols.ConeTypeParameterSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirClassSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirTypeAliasSymbol
-import org.jetbrains.kotlin.fir.types.ConeAbbreviatedType
-import org.jetbrains.kotlin.fir.types.ConeClassErrorType
-import org.jetbrains.kotlin.fir.types.ConeClassLikeType
+import org.jetbrains.kotlin.fir.types.*
 
 fun lookupSuperTypes(
     klass: FirRegularClass,
@@ -27,6 +29,20 @@ fun lookupSuperTypes(
         if (lookupInterfaces) klass.symbol.collectSuperTypes(it, deep, useSiteSession)
         else klass.symbol.collectSuperClasses(it, useSiteSession)
     }
+}
+
+internal fun ConeClassLikeType.buildSubstitutionScope(
+    useSiteScope: FirScope,
+    regularClass: FirRegularClass
+): FirClassSubstitutionScope? {
+    if (this.typeArguments.isEmpty()) return null
+
+    @Suppress("UNCHECKED_CAST")
+    val substitution = regularClass.typeParameters.zip(this.typeArguments) { typeParameter, typeArgument ->
+        typeParameter.symbol to (typeArgument as? ConeTypedProjection)?.type
+    }.filter { (_, type) -> type != null }.toMap() as Map<ConeTypeParameterSymbol, ConeKotlinType>
+
+    return FirClassSubstitutionScope(useSiteScope, substitution)
 }
 
 private tailrec fun ConeClassLikeType.computePartialExpansion(): ConeClassLikeType? {
