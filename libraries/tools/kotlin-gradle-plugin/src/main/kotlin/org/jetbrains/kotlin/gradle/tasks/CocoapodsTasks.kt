@@ -83,7 +83,7 @@ open class PodspecTask : DefaultTask() {
         logger.quiet(
             """
             Generated a podspec file at: ${outputFile.absolutePath}.
-            To include it in your CocoaPods project, add the following dependency snippet in your Podfile:
+            To include it in your Xcode project, add the following dependency snippet in your Podfile:
 
                 pod '$specName', :path => '${outputFile.parentFile.absolutePath}'
 
@@ -97,7 +97,7 @@ open class PodspecTask : DefaultTask() {
  *
  * We represent a Kotlin/Native module to CocoaPods as a vendored framework.
  * CocoaPods needs access to such frameworks during installation process to obtain
- * their type (static or dynamic) and configure the XCode project accordingly.
+ * their type (static or dynamic) and configure the Xcode project accordingly.
  * But we cannot build the real framework before installation because it may
  * depend on CocoaPods libraries which are not downloaded and built at this stage.
  * So we create a dummy static framework to allow CocoaPods install our pod correctly
